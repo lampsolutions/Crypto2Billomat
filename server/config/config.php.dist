@@ -1,0 +1,9 @@
+<?php
+
+return [
+    'api_key'               => '', // A key which is used to authorize client <--> server communications (Under linux generate with for example: "head /dev/urandom | tr -dc A-Za-z0-9 | head -c 64 ; echo ''")
+    'cryptogate.base_uri'   => '', // Your CryptoPanel / CryptoGate Merchant Url for example https://loremipsum.cryptopanel.de/
+    'cryptogate.api_key'    => '', // Your CryptoPanel / CryptoGate Merchant Token
+    'billomat.base_uri'     => '', // Your Billomat Instance Url for example https://loremipsum.billomat.net/
+    'billomat.api_key'      => '', // Your Billomat Api Key
+];

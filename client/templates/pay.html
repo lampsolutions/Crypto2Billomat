@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title></title>
+    <link href="/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+</head>
+<body translate="no">
+    <div class="container" style="padding: 40px 40px;">
+        <script src="{{CRYPTOGATE_BASE_URI}}/js/iframeResizer.min.js"></script>
+        <iframe id="iframe-gift" style="width: 100%; min-width: 100%" src="{{CRYPTOGATE_BASE_URI}}/payments/{{UUID}}" frameborder="0" scrolling="no"></iframe>
+        <script>iFrameResize({ log: false, checkOrigin: false, heightCalculationMethod: 'lowestElement'}, '#iframe-gift')</script>
+    </div>
+</body>
+
+</html>
