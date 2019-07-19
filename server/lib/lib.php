@@ -63,7 +63,7 @@ function cryptopanel_invoice_create($cryptogate_base_uri, $cryptogate_api_key, $
                 'amount' => $amount,
                 'currency' => $billomat_invoice->currency_code,
                 'memo' => $billomat_invoice->invoice_number,
-                'seller_name' => 'LAMP solutions GmbH',
+                'seller_name' => 'Demo',
                 'first_name' => $billomat_invoice->invoice_number,
                 'last_name' => $billomat_invoice_date,
                 'email' => '',

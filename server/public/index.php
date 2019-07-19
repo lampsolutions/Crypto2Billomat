@@ -102,12 +102,6 @@ function callback_handler($invoice_number, $invoice_date, $uuid_verify, $status_
             (string)$cryptopanel_invoice->amount
         );
 
-        billomat_email_invoice(
-            $config['billomat.base_uri'],
-            $config['billomat.api_key'],
-            $invoice
-        );
-
         return json_response(['status' => 'OK']);
     }
 
