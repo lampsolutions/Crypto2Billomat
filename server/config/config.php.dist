@@ -6,4 +6,20 @@ return [
     'cryptogate.api_key'    => '', // Your CryptoPanel / CryptoGate Merchant Token
     'billomat.base_uri'     => '', // Your Billomat Instance Url for example https://loremipsum.billomat.net/
     'billomat.api_key'      => '', // Your Billomat Api Key
+
+    'smtp.Username' => '',
+    'smtp.Password' => '',
+    'smtp.From' => '',
+    'smtp.FromName' => '',
+    'smtp.ReplyTo' => '',
+    'smtp.ReplyToName' => '',
+    'smtp.Address' => '',
+    'smtp.BCC' => '',
+    'smtp.BCCName' => '',
+    'smtp.Body' => '',
+    'smtp.Host' => '',
+    'smtp.Port' =>'',
+
+    'seller.Name' =>''
+
 ];

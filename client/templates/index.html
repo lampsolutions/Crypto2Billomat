@@ -3,14 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title></title>
     <link href="/css/bootstrap.min.css" rel="stylesheet">
     <link href="/css/style.css" rel="stylesheet">
 </head>
 <body translate="no">
     <div class="container">
         <div class="card card-container">
-            <img id="profile-img" style="width: 100%" src="/img/lamp-logo-transparent.png" />
 
             <p id="profile-name" class="profile-name-card"></p>
             <form class="form-signin" method="POST" action="/pay/">
@@ -19,9 +17,22 @@
                 {{SUCCESS_MSG}}
 
                 <span id="reauth-email" class="reauth-email"></span>
-                <input type="text" name="customer_number" id="kdnr" class="form-control" placeholder="Kunden-Nummer" required autofocus>
-                <input type="text" name="invoice_number" id="innr" class="form-control" placeholder="Rechnungs-Nummer" required autofocus>
-                <input type="date" name="invoice_date" id="date" class="form-control" placeholder="Rechnungs-Datum" required>
+
+                <div class="form-group">
+                    <label for="kdnr"><small>Kundennummer</small></label>
+                    <input type="text" name="customer_number" id="kdnr" class="form-control" placeholder="KD-12345" required autofocus>
+                </div>
+
+
+                <div class="form-group">
+                    <label for="innr"><small>Rechnungsnummer</small></label>
+                    <input type="text" name="invoice_number" id="innr" class="form-control" placeholder="RE-12345" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="date"><small>Rechnungsdatum</small></label>
+                    <input type="date" name="invoice_date" id="date" class="form-control" placeholder="Rechnungsdatum" required>
+                </div>
 
                 <br>
                 <small>Jetzt eine Rechnung mit einer der folgenden Kryptowährungen bezahlen.</small>
@@ -32,6 +43,12 @@
                 <button class="btn btn-lg btn-primary btn-block btn-signin" type="submit">Jetzt bezahlen</button>
             </form>
         </div>
+        <footer class="mdl-mini-footer" style="padding: 0; background-color: inherit; text-align: center; color: white !important;">
+            <a style="color: white !important;"  href="/dsgvo.html">Datenschutz</a> |
+            <a style="color: white !important;"  href="/impressum.html">Impressum</a>
+        </footer>
     </div>
+
+
 </body>
 </html>

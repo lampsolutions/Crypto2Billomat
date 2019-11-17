@@ -33,25 +33,118 @@ function cryptopanel_token_hash($invoice_number, $cryptogate_api_key, $amount) {
     return hash('sha256', $invoice_number.$cryptogate_api_key.number_format($amount));
 }
 
-function billomat_get_total_amount($billomat_invoice) {
-    $discount_until = strtotime('+' . $billomat_invoice->discount_days . 'days', strtotime($billomat_invoice->date));
 
-    if(time() > $discount_until) {
-        return $billomat_invoice->total_gross_unreduced;
+function billomat_is_crypto_discount_valid($billomat_invoice, $default_attributes, $customer_attributes) {
+    list($crypto_discount_days, $crypto_discount_percent) = billomat_get_crypto_discount_values($default_attributes, $customer_attributes);
+    $crypto_discount_until = strtotime('+' . $crypto_discount_days . 'days', strtotime($billomat_invoice->date));
+
+    if(!empty($crypto_discount_percent)) {
+        if($crypto_discount_until > time()) {
+            return true;
+        }
     }
 
-    return $billomat_invoice->total_gross_unreduced - $billomat_invoice->discount_amount;
+    return false;
 }
 
-function cryptopanel_invoice_create($cryptogate_base_uri, $cryptogate_api_key, $local_api_key, $billomat_invoice, $billomat_invoice_date) {
+
+function billomat_get_crypto_discount_values($default_attributes, $customer_attributes) {
+    $crypto_discount_days = 0;
+    $crypto_discount_percent = 0;
+
+    foreach($default_attributes as $a) {
+        if($a->name == 'CRYPTO_DISCOUNT_DAYS') $crypto_discount_days = intval($a->default_value);
+        if($a->name == 'CRYPTO_DISCOUNT_PERCENTAGE') $crypto_discount_percent = intval($a->default_value);
+    }
+
+    foreach($customer_attributes as $a) {
+        if($a->name == 'CRYPTO_DISCOUNT_DAYS' && !empty($a->value)) $crypto_discount_days = intval($a->value);
+        if($a->name == 'CRYPTO_DISCOUNT_PERCENTAGE'  && !empty($a->value)) $crypto_discount_percent = intval($a->value);
+    }
+
+    return [$crypto_discount_days, $crypto_discount_percent];
+}
+
+
+function billomat_get_crypto_discount_amount($billomat_invoice, $default_attributes, $customer_attributes) {
+    list($crypto_discount_days, $crypto_discount_percent) = billomat_get_crypto_discount_values($default_attributes, $customer_attributes);
+    $crypto_discount_until = strtotime('+' . $crypto_discount_days . 'days', strtotime($billomat_invoice->date));
+
+    if(!empty($crypto_discount_percent)) {
+        if($crypto_discount_until > time()) {
+            $amount = (float)$billomat_invoice->total_gross;
+            $discount = (float) ($amount / 100) * $crypto_discount_percent;
+            return (float) number_format( $discount, 2);
+        }
+    }
+
+    return 0.00;
+}
+
+
+function billomat_get_total_amount($billomat_invoice, $default_attributes, $customer_attributes) {
+
+    $discount_until = strtotime('+' . $billomat_invoice->discount_days . 'days', strtotime($billomat_invoice->date));
+
+    $crypto_discount_amount = billomat_get_crypto_discount_amount($billomat_invoice, $default_attributes, $customer_attributes);
+
+    if(!empty($crypto_discount_amount)) {
+        if(billomat_is_crypto_discount_valid($billomat_invoice, $default_attributes, $customer_attributes)) {
+            return (float) number_format( $billomat_invoice->total_gross - $crypto_discount_amount, 2);
+        }
+    }
+
+    if($billomat_invoice->reminders){
+        $total=$billomat_invoice->reminders->total_gross;
+    }else{
+        $total=$billomat_invoice->total_gross;
+    }
+
+    if(time() > $discount_until) {
+        return $total;
+    }
+
+
+    return $total - $billomat_invoice->discount_amount;
+
+}
+
+function cryptopanel_invoice_create(
+                    $cryptogate_base_uri,
+                    $cryptogate_api_key,
+                    $local_api_key,
+                    $billomat_invoice,
+                    $billomat_invoice_date,
+                    $amount,
+                    $customer,
+                    $default_attributes,
+                    $customer_attributes,
+                    $config)
+    {
     $client = new \GuzzleHttp\Client([
         'base_uri' => $cryptogate_base_uri,
         'timeout'  => 10.0,
     ]);
 
-    $amount = billomat_get_total_amount($billomat_invoice);
+    $crypto_discount = billomat_is_crypto_discount_valid(
+        $billomat_invoice,
+        $default_attributes,
+        $customer_attributes
+    );
+
+    $memo = $billomat_invoice->invoice_number;
+    if($crypto_discount) {
+        list($crypto_discount_days, $crypto_discount_percent) = billomat_get_crypto_discount_values($default_attributes, $customer_attributes);
+        $memo .= sprintf(' (SKONTO: %d%%)', $crypto_discount_percent);
+    }
 
     $token = cryptopanel_token_hash($billomat_invoice->invoice_number, $cryptogate_api_key, $amount);
+
+    $note='';
+    if($billomat_invoice->reminders){
+        $note="ink. Mahngebühr: ".
+            number_format(((float)$billomat_invoice->reminders->total_gross - (float)$billomat_invoice->total_gross),2,",",".")." EUR";
+    }
 
     $reponse = $client->post(
         '/api/paymentform/create',
@@ -62,18 +155,18 @@ function cryptopanel_invoice_create($cryptogate_base_uri, $cryptogate_api_key, $
             'form_params' => [
                 'amount' => $amount,
                 'currency' => $billomat_invoice->currency_code,
-                'memo' => $billomat_invoice->invoice_number,
-                'seller_name' => 'Demo',
+                'memo' => $memo,
+                'note' => $note,
+                'seller_name' => $config["seller.Name"],
                 'first_name' => $billomat_invoice->invoice_number,
-                'last_name' => $billomat_invoice_date,
-                'email' => '',
+                'last_name' => $customer->client_number,
+                'email' => @$customer->email,
                 'token' => $token,
                 'return_url' => '',
                 'callback_url' => CALLBACK_BASE_URI."/callback/?api_key=$local_api_key&invoice_number=$billomat_invoice->invoice_number&invoice_date=$billomat_invoice_date",
             ]
         ]
     );
-
     $resp = json_decode($reponse->getBody()->getContents());
 
     if($resp && $resp->payment_url) {
@@ -83,34 +176,32 @@ function cryptopanel_invoice_create($cryptogate_base_uri, $cryptogate_api_key, $
     return false;
 }
 
-function billomat_email_invoice($billoamat_base_uri, $billomat_api_key, $billomat_invoice) {
+function billomat_email_invoice($billoamat_base_uri, $billomat_api_key, $billomat_template_id, $billomat_invoice, $invoice_date,$config) {
     $customer = billomat_customer_get_by_client_id($billoamat_base_uri, $billomat_api_key, $billomat_invoice->client_id);
-
-    $client = new \GuzzleHttp\Client([
-        'base_uri' => $billoamat_base_uri,
-        'timeout'  => 20.0,
-    ]);
-
-    $k = 'email';
-    $invoiceEmail = new stdClass();
-    $invoiceEmail->$k = new stdClass();
-    $invoiceEmail->$k->recipients->to = $customer->email;
-
     if(!$customer || empty($customer->email)) {
         return false;
     }
 
-    $client->post(
-        '/api/invoices/'.$billomat_invoice->id.'/email',
-        [
-            'query' => [
-                'format' => 'json',
-                'api_key' => $billomat_api_key
-            ],
-            'body' => getXMLEncode($invoiceEmail),
-            'headers' => ['Content-Type' => 'application/xml']
-        ]
-    );
+    $mail = new \PHPMailer\PHPMailer\PHPMailer();
+    $mail->isSMTP();
+    $mail->SMTPDebug = 0;
+    $mail->Host = $config["smtp.Host"];
+    $mail->Port = $config["smtp.Port"];
+
+    $mail->CharSet = 'utf-8';
+    $mail->SetLanguage ("de");
+
+    $mail->SMTPAuth = true;
+    $mail->Username = $config["smtp.Username"];
+    $mail->Password = $config["smtp.Password"];
+    $mail->setFrom($config["smtp.From"], $config["smtp.FromNamw"]);
+    $mail->addReplyTo($config["smtp.ReplyTo"], $config["smtp.ReplyToName"]);
+    $mail->addAddress($customer->email, $customer->name);
+    $mail->addBCC($config["smtp.BCC"], $config["smtp.BCCName"]);
+    $mail->Subject = 'Zahlungseingang zur Rechnung '.$billomat_invoice->invoice_number.' am '.$invoice_date;
+    $mail->Body = $config["smtp.Body"];
+
+    $mail->send();
 
     return true;
 }
@@ -135,6 +226,63 @@ function billomat_customer_get_by_client_id($billoamat_base_uri, $billomat_api_k
     $client = @json_decode($reponse->getBody()->getContents());
     if($client->client) {
         return $client->client;
+    }
+
+    return false;
+}
+
+function billomat_default_customer_attributes($billoamat_base_uri, $billomat_api_key) {
+
+    $client = new \GuzzleHttp\Client([
+        'base_uri' => $billoamat_base_uri,
+        'timeout'  => 5.0,
+    ]);
+
+    $reponse = $client->get(
+        '/api/client-properties',
+        [
+            'query' => [
+                'format' => 'json',
+                'api_key' => $billomat_api_key
+            ],
+        ]
+    );
+
+    $attributes = @json_decode($reponse->getBody()->getContents());
+    $km = 'client-properties';
+    $ks = 'client-property';
+
+    if($attributes->$km->$ks) {
+        return $attributes->$km->$ks;
+    }
+
+    return false;
+}
+
+function billomat_customer_attributes($billoamat_base_uri, $billomat_api_key, $client_id) {
+
+    $client = new \GuzzleHttp\Client([
+        'base_uri' => $billoamat_base_uri,
+        'timeout'  => 5.0,
+    ]);
+
+    $reponse = $client->get(
+        '/api/client-property-values',
+        [
+            'query' => [
+                'client_id' => $client_id,
+                'format' => 'json',
+                'api_key' => $billomat_api_key
+            ],
+        ]
+    );
+
+    $attributes = @json_decode($reponse->getBody()->getContents());
+    $km = 'client-property-values';
+    $ks = 'client-property-value';
+
+    if($attributes->$km->$ks) {
+        return $attributes->$km->$ks;
     }
 
     return false;
@@ -187,6 +335,17 @@ function billomat_invoice_get($billoamat_base_uri, $billomat_api_key, $invoice_n
     );
 
     $invoices = @json_decode($reponse->getBody()->getContents());
+
+    $reminders=billomat_reminders_get($billoamat_base_uri, $billomat_api_key, $invoice_number);
+    if(is_array($reminders)){
+        $reminders=end($reminders);
+    }
+
+    if($reminders) {
+        $invoices->invoices->invoice->reminders = $reminders;
+    }
+
+
     if($invoices->invoices->invoice) {
         return $invoices->invoices->invoice;
     }
@@ -194,8 +353,34 @@ function billomat_invoice_get($billoamat_base_uri, $billomat_api_key, $invoice_n
     return false;
 }
 
+function billomat_reminders_get($billoamat_base_uri, $billomat_api_key, $invoice_number) {
 
-function billomat_invoice_payment_set($billoamat_base_uri, $billomat_api_key, $invoice_id, $paid_amount) {
+    $client = new \GuzzleHttp\Client([
+        'base_uri' => $billoamat_base_uri,
+        'timeout'  => 2.0,
+    ]);
+
+    $response = $client->get(
+        '/api/reminders',
+        [
+            'query' => [
+                'invoice_number' => $invoice_number,
+                'format' => 'json',
+                'api_key' => $billomat_api_key
+            ],
+        ]
+    );
+
+    $reminder = @json_decode($response->getBody()->getContents());
+    if($reminder->reminders->reminder) {
+        return $reminder->reminders->reminder;
+    }
+
+    return false;
+}
+
+
+function billomat_invoice_payment_set($billoamat_base_uri, $billomat_api_key, $invoice_id, $paid_amount, $paid_message) {
 
     $client = new \GuzzleHttp\Client([
         'base_uri' => $billoamat_base_uri,
@@ -208,7 +393,7 @@ function billomat_invoice_payment_set($billoamat_base_uri, $billomat_api_key, $i
     $invoicePayment->$k->amount = (float)$paid_amount;
     $invoicePayment->$k->invoice_id = $invoice_id;
     $invoicePayment->$k->type = 'MISC';
-    $invoicePayment->$k->comment = 'Bezahlt mit Kryptozahlung';
+    $invoicePayment->$k->comment = $paid_message;
     $invoicePayment->$k->mark_invoice_as_paid = 1;
 
     $response = $client->post(

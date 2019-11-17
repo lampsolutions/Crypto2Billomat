@@ -42,6 +42,7 @@ function api_get_payment($invoice_number, $invoice_date, $customer_number) {
         )
     );
 
+
     $context  = stream_context_create($opts);
 
     $result = @json_decode(@file_get_contents($config['api.base_uri'].'/pay/?'.$postdata, false, $context), true);

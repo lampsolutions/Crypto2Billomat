@@ -1,8 +1,13 @@
 
-body, html {
-    height: 100%;
+html {
+    min-height: 100%;
     background-repeat: no-repeat;
     background-image: linear-gradient(rgb(44, 61, 133), rgb(44, 103, 133));
+}
+
+body {
+    min-height: 100%;
+    background: transparent;
 }
 
 .card-container.card {
